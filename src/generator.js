@@ -9,6 +9,7 @@ class DataRainGenerator {
         this.framesPerSecond = 24;
         this.symbols = ['0', '1', '•', '◆', '○', '□'];
         this.colors = ['#1c7ff2', '#4c9ff4', '#7cbff7', '#acdffa'];
+        this.backgroundColor = '#fafafa';
     }
 
     generateFrame(ctx, frameIndex, layer) {
@@ -47,8 +48,8 @@ class DataRainGenerator {
         
         // Generate each frame
         for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
-            // Clear canvas with slight fade
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            // Clear canvas with background color
+            ctx.fillStyle = this.backgroundColor;
             ctx.fillRect(0, 0, this.width, this.height);
             
             // Draw each layer
@@ -56,10 +57,10 @@ class DataRainGenerator {
                 this.generateFrame(ctx, frameIndex, layer);
             }
             
-            // Add gradient fade at bottom
+            // Add gradient fade at bottom using background color
             const gradient = ctx.createLinearGradient(0, this.height - 50, 0, this.height);
-            gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
-            gradient.addColorStop(1, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0, `${this.backgroundColor}00`); // Transparent background
+            gradient.addColorStop(1, this.backgroundColor); // Solid background
             ctx.fillStyle = gradient;
             ctx.fillRect(0, this.height - 50, this.width, this.height);
             
