@@ -1,0 +1,1 @@
+# GIFgenerator\nEmail header animation generator built with Node.js
