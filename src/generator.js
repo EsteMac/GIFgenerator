@@ -1,74 +1,111 @@
 const { createCanvas } = require('canvas');
-const GIFEncoder = require('gifencoder');
+const GIFEncoder = require('gif-encoder-2');
+const fs = require('fs');
+
+// Configuration Parameters
+const CONFIG = {
+    // Canvas dimensions
+    WIDTH: 600,
+    HEIGHT: 200,
+    
+    // Animation settings
+    FRAMES_PER_SECOND: 15,
+    TOTAL_FRAMES: 60,
+    
+    // Symbol settings
+    BINARY_FONT_SIZE: 16,
+    SPECIAL_FONT_SIZE: 14,
+    SYMBOLS: ['1', '0', '1', '0', '•', '◆', '○', '□'],
+    
+    // Layer settings
+    NUMBER_OF_LAYERS: 4,
+    BASE_ALPHA: 0.8,
+    ALPHA_DECREASE: 0.15,
+    
+    // Movement settings
+    BASE_SPEED: 4,
+    SPEED_DECREASE: 0.5,
+    
+    // Distribution settings
+    SYMBOLS_PER_LAYER: 5,
+    HORIZONTAL_SPREAD: 0.05,
+    
+    // New margin settings
+    EDGE_MARGIN: 40,     // Pixels to leave empty at edges
+    
+    // Color settings
+    SYMBOL_COLOR: '120, 235, 126'
+};
 
 class DataRainGenerator {
-    constructor(width = 600, height = 200) {
-        this.width = width;
-        this.height = height;
-        this.layers = 4;
-        this.framesPerSecond = 24;
-        this.symbols = ['0', '1', '•', '◆', '○', '□'];
-        this.colors = ['#1c7ff2', '#4c9ff4', '#7cbff7', '#acdffa'];
-        this.backgroundColor = '#fafafa';
+    constructor(config = CONFIG) {
+        this.config = config;
     }
 
     generateFrame(ctx, frameIndex, layer) {
-        const tileHeight = this.height / (this.layers - layer);
-        const symbols = Math.floor(10 / (layer + 1)); // Fewer symbols in back layers
-        const alpha = 0.8 - (layer * 0.15); // More transparent in back
-        const speed = 8 - (layer * 1.5); // Slower in back
+        const tileHeight = this.config.HEIGHT / (this.config.NUMBER_OF_LAYERS - layer);
+        const symbols = Math.floor(this.config.SYMBOLS_PER_LAYER / (layer + 1));
+        const alpha = this.config.BASE_ALPHA - (layer * this.config.ALPHA_DECREASE);
+        const speed = this.config.BASE_SPEED - (layer * this.config.SPEED_DECREASE);
         
-        ctx.fillStyle = `rgba(28, 127, 242, ${alpha})`; // Using brand blue
-        ctx.font = `${16 - (layer * 3)}px monospace`; // Smaller in back
-
-        // Create repeating pattern for each layer
+        ctx.fillStyle = `rgba(${this.config.SYMBOL_COLOR}, ${alpha})`;
+        
         for (let i = 0; i < symbols; i++) {
-            const x = (Math.sin(i * 397) * this.width) % this.width;
+            // Adjust base position to account for margins
+            const usableWidth = this.config.WIDTH - (2 * this.config.EDGE_MARGIN);
+            const baseX = this.config.EDGE_MARGIN + ((i / (symbols - 1)) * usableWidth);
+            const offset = Math.sin(i * 397) * (usableWidth * this.config.HORIZONTAL_SPREAD);
+            
+            // Clamp x position to stay within margins
+            const x = Math.max(
+                this.config.EDGE_MARGIN,
+                Math.min(
+                    this.config.WIDTH - this.config.EDGE_MARGIN,
+                    baseX + offset
+                )
+            );
+            
             let y = (frameIndex * speed + (i * tileHeight / symbols)) % tileHeight;
             
-            // Repeat pattern vertically
-            for (let repeat = 0; repeat < (this.layers - layer); repeat++) {
-                const symbol = this.symbols[Math.floor(i % this.symbols.length)];
+            for (let repeat = 0; repeat < (this.config.NUMBER_OF_LAYERS - layer); repeat++) {
+                const symbol = this.config.SYMBOLS[Math.floor(Math.random() * this.config.SYMBOLS.length)];
+                
+                if (symbol === '1' || symbol === '0') {
+                    ctx.font = `${this.config.BINARY_FONT_SIZE - (layer * 3)}px monospace`;
+                } else {
+                    ctx.font = `${this.config.SPECIAL_FONT_SIZE - (layer * 3)}px monospace`;
+                }
+                
                 ctx.fillText(symbol, x, y + (repeat * tileHeight));
             }
         }
     }
 
     generate() {
-        const encoder = new GIFEncoder(this.width, this.height);
-        const canvas = createCanvas(this.width, this.height);
+        const encoder = new GIFEncoder(this.config.WIDTH, this.config.HEIGHT);
+        const canvas = createCanvas(this.config.WIDTH, this.config.HEIGHT);
         const ctx = canvas.getContext('2d');
-        const frameCount = 60; // Using optimal frame count
 
-        encoder.createReadStream().pipe(require('fs').createWriteStream('dist/header-animation.gif'));
+        encoder.setDelay(1000 / this.config.FRAMES_PER_SECOND);
         encoder.start();
-        encoder.setRepeat(0); // Loop forever
-        encoder.setDelay(1000 / this.framesPerSecond);
-        encoder.setQuality(10); // Lower = better compression
+        encoder.setTransparent(true);
+        encoder.setRepeat(0);
         
-        // Generate each frame
-        for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
-            // Clear canvas with background color
-            ctx.fillStyle = this.backgroundColor;
-            ctx.fillRect(0, 0, this.width, this.height);
+        for (let frameIndex = 0; frameIndex < this.config.TOTAL_FRAMES; frameIndex++) {
+            ctx.clearRect(0, 0, this.config.WIDTH, this.config.HEIGHT);
             
-            // Draw each layer
-            for (let layer = 0; layer < this.layers; layer++) {
+            for (let layer = 0; layer < this.config.NUMBER_OF_LAYERS; layer++) {
                 this.generateFrame(ctx, frameIndex, layer);
             }
-            
-            // Add gradient fade at bottom using background color
-            const gradient = ctx.createLinearGradient(0, this.height - 50, 0, this.height);
-            gradient.addColorStop(0, `${this.backgroundColor}00`); // Transparent background
-            gradient.addColorStop(1, this.backgroundColor); // Solid background
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, this.height - 50, this.width, this.height);
             
             encoder.addFrame(ctx);
         }
         
         encoder.finish();
-        console.log('GIF generated successfully!');
+        
+        const buffer = encoder.out.getData();
+        fs.writeFileSync('dist/header-animation.gif', buffer);
+        console.log('GIF generated successfully with transparency!');
     }
 }
 
